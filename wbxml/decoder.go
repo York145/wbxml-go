@@ -296,11 +296,11 @@ func (d *Decoder) decodeContent() (string, error) {
 				nextByte, err = d.reader.ReadByte()
 				nextByte, err = d.reader.ReadByte()
 				if nextByte == 0xc3 {
-					result += "<U18_00>"
+					result += "</TXT><U18_00>"
 					d.reader.UnreadByte()
 					content, err = d.decodeInlineString()
 					nextByte, err = d.reader.ReadByte()
-					content += "<TYPE>"
+					content += "</U18_00>"
 				} else {
 					n2 = ""
 					n2 += "1"
