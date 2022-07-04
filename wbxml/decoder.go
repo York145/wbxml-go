@@ -248,15 +248,29 @@ func (d *Decoder) decodeContent() (string, error) {
 		err      error
 		result   string = ""
 		content  string
+		n2       string = ""
+		n1       string = ""
 	)
 
 	nextByte, err = d.reader.ReadByte()
 	d.reader.UnreadByte()
+	// n2 = 0
 	for nextByte != END {
 		if err == nil {
-
-			if nextByte == STR_I {
+			// ti := 0
+			if nextByte == STR_I || nextByte == 0xc1 {
+				d1 := 0
+				if nextByte == 0xc1 {
+					d1 = 1
+				}
 				content, err = d.decodeInlineString()
+				if d1 == 1 {
+					for i := 1; i <= 12; i++ {
+						nextByte, err = d.reader.ReadByte()
+					}
+					content, err = d.decodeInlineString()
+					d1 = 0
+				}
 			} else if nextByte == STR_T {
 				content, err = d.decodeStringTableReference()
 			} else if nextByte == SWITCH_PAGE {
@@ -264,6 +278,36 @@ func (d *Decoder) decodeContent() (string, error) {
 				err = d.switchTagCodePage()
 			} else if nextByte == ENTITY {
 				content, err = d.decodeEntity()
+			} else if nextByte == 0x63 && n1 != "1" {
+				nextByte, err = d.reader.ReadByte()
+				nextByte, err = d.reader.ReadByte()
+				if nextByte == 0x64 {
+					result = "<TXT>"
+
+					content, err = d.decodeInlineString()
+					nextByte, err = d.reader.ReadByte()
+				} else {
+					n1 = ""
+					n1 += "1"
+					d.reader.UnreadByte()
+					d.reader.UnreadByte()
+				}
+			} else if nextByte == 0x65 && n2 != "1" {
+				nextByte, err = d.reader.ReadByte()
+				nextByte, err = d.reader.ReadByte()
+				if nextByte == 0xc3 {
+					result += "<U18_00>"
+					d.reader.UnreadByte()
+					content, err = d.decodeInlineString()
+					nextByte, err = d.reader.ReadByte()
+					content += "<TYPE>"
+				} else {
+					n2 = ""
+					n2 += "1"
+					d.reader.UnreadByte()
+					d.reader.UnreadByte()
+				}
+				// d.reader.UnreadByte()
 			} else {
 				content, err = d.decodeTag(false)
 			}
@@ -314,13 +358,26 @@ func (d *Decoder) decodeInlineString() (string, error) {
 		buffer   bytes.Buffer
 		err      error
 	)
-
+	n := 0
+	n1 := 0
 	nextByte, err = d.reader.ReadByte()
-	if err == nil && nextByte == STR_I {
+	if err == nil && (nextByte == STR_I || nextByte == 0xc1 || nextByte == 0xc3) {
+		if nextByte == 0xc3 {
+			n = 1
+			n1 = 1
+		}
 		for true {
 			nextByte, err = d.reader.ReadByte()
 			if err != nil || nextByte == 0x00 {
 				break
+			}
+			if n == 1 && nextByte == 0x01 {
+				break
+			}
+			if n1 == 1 {
+				nextByte, err = d.reader.ReadByte()
+				nextByte, err = d.reader.ReadByte()
+				n1 = 2
 			}
 			buffer.WriteByte(nextByte)
 		}
